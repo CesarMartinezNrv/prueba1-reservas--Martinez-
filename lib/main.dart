@@ -8,7 +8,15 @@ import 'presentation/reserva_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+  if (supabasePublishableKey.isEmpty) {
+    throw StateError(
+      'Falta SUPABASE_PUBLISHABLE_KEY. Configúrala al ejecutar Flutter.',
+    );
+  }
+  await Supabase.initialize(
+    url: supabaseUrl,
+    publishableKey: supabasePublishableKey,
+  );
 
   final repositorio = SupabaseReservasRepository(Supabase.instance.client);
   runApp(ReservasApp(crearReserva: CrearReserva(repositorio)));

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/crear_reserva.dart';
+import '../domain/reserva.dart';
 
 class ReservaPage extends StatefulWidget {
   const ReservaPage({super.key, required this.crearReserva});
@@ -15,23 +16,11 @@ class ReservaPage extends StatefulWidget {
 class _ReservaPageState extends State<ReservaPage> {
   static const _salas = ['Sala A', 'Sala B', 'Sala C'];
 
-  final _usuarioController = TextEditingController();
   String _sala = _salas.first;
   TimeOfDay _inicio = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _fin = const TimeOfDay(hour: 10, minute: 0);
   String? _mensaje;
-
-  @override
-  void initState() {
-    super.initState();
-    _usuarioController.text = Supabase.instance.client.auth.currentUser?.id ?? '';
-  }
-
-  @override
-  void dispose() {
-    _usuarioController.dispose();
-    super.dispose();
-  }
+  bool _cargando = false;
 
   DateTime _hoyA(TimeOfDay hora) {
     final hoy = DateTime.now();
@@ -43,7 +32,7 @@ class _ReservaPageState extends State<ReservaPage> {
       context: context,
       initialTime: esInicio ? _inicio : _fin,
     );
-    if (hora == null) {
+    if (hora == null || !mounted) {
       return;
     }
     setState(() {
@@ -56,21 +45,52 @@ class _ReservaPageState extends State<ReservaPage> {
   }
 
   Future<void> _reservar() async {
+    final usuario = Supabase.instance.client.auth.currentUser;
+    if (usuario == null) {
+      setState(() => _mensaje = 'Inicia sesión para crear una reserva.');
+      return;
+    }
+
+    setState(() {
+      _cargando = true;
+      _mensaje = null;
+    });
     try {
-      await Supabase.instance.client.from('reservas').insert({
-        'sala_id': _sala,
-        'usuario_id': _usuarioController.text,
-        'inicio': _hoyA(_inicio).toUtc().toIso8601String(),
-        'fin': _hoyA(_fin).toUtc().toIso8601String(),
+      final resultado = await widget.crearReserva(
+        SolicitudReserva(
+          salaId: _sala,
+          usuarioId: usuario.id,
+          inicio: _hoyA(_inicio),
+          fin: _hoyA(_fin),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _mensaje = resultado.aceptada
+            ? 'Reserva creada'
+            : resultado.mensaje ?? 'No se pudo crear la reserva.';
       });
-      setState(() => _mensaje = 'Reserva creada');
     } on PostgrestException catch (e) {
-      setState(() => _mensaje = 'No se pudo reservar: ${e.message}');
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _mensaje = e.code == '23P01'
+            ? 'La sala ya está reservada en ese horario.'
+            : 'No se pudo reservar: ${e.message}';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _mensaje = 'No se pudo crear la reserva. Inténtalo de nuevo.';
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final usuario = Supabase.instance.client.auth.currentUser;
     return Scaffold(
       appBar: AppBar(title: const Text('Reservar sala')),
       body: Padding(
@@ -78,29 +98,35 @@ class _ReservaPageState extends State<ReservaPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (usuario == null)
+              const Text('Inicia sesión para crear una reserva.')
+            else
+              Text('Sesión: ${usuario.email ?? 'usuario autenticado'}'),
             DropdownButton<String>(
               value: _sala,
               items: _salas
-                  .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                  .map((sala) =>
+                      DropdownMenuItem(value: sala, child: Text(sala)))
                   .toList(),
-              onChanged: (valor) => setState(() => _sala = valor ?? _sala),
-            ),
-            TextField(
-              controller: _usuarioController,
-              decoration: const InputDecoration(labelText: 'ID de usuario'),
+              onChanged: _cargando
+                  ? null
+                  : (valor) => setState(() => _sala = valor ?? _sala),
             ),
             ListTile(
               title: Text('Inicio: ${_inicio.format(context)}'),
               trailing: const Icon(Icons.schedule),
-              onTap: () => _elegirHora(esInicio: true),
+              onTap: _cargando ? null : () => _elegirHora(esInicio: true),
             ),
             ListTile(
               title: Text('Fin: ${_fin.format(context)}'),
               trailing: const Icon(Icons.schedule),
-              onTap: () => _elegirHora(esInicio: false),
+              onTap: _cargando ? null : () => _elegirHora(esInicio: false),
             ),
             const SizedBox(height: 16),
-            FilledButton(onPressed: _reservar, child: const Text('Reservar')),
+            FilledButton(
+              onPressed: _cargando || usuario == null ? null : _reservar,
+              child: Text(_cargando ? 'Procesando…' : 'Reservar'),
+            ),
             if (_mensaje != null) ...[
               const SizedBox(height: 16),
               Text(_mensaje!),

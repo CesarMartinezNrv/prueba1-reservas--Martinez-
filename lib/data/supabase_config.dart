@@ -1,4 +1,6 @@
 const supabaseUrl = 'https://qwkzrsvlnpdxtyjmhbcf.supabase.co';
 
-const supabaseKey =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3a3pyc3ZsbnBkeHR5am1oYmNmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTI3NjgwMCwiZXhwIjoyMDc0ODUyODAwfQ.Zk3pQ8vT2mXr9LwYb6NcJh4UaE1sD7oGqVtRyIu0KfM';
+// Configurada en tiempo de compilación; la clave publishable no es secreta.
+// No colocar aquí claves service_role ni secret.
+const supabasePublishableKey =
+    String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
