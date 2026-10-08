@@ -16,3 +16,8 @@ coverage/
 # SO
 .DS_Store
 Thumbs.db
+
+# Archivos de entrega y diagnósticos locales
+*.bundle
+sesion-*.zip
+flutter_*.log
